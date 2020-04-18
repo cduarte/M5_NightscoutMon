@@ -245,6 +245,38 @@ void startupLogo() {
     */
 }
 
+time_t convertToTime(String calTimestamp) {
+  struct tm tm;
+  Serial.println("Parsing " + calTimestamp);
+  String year = calTimestamp.substring(0, 4);
+  String month = calTimestamp.substring(5, 7);
+  if (month.startsWith("0")) {
+    month = month.substring(1);
+  }
+  String day = calTimestamp.substring(8, 10);
+  if (day.startsWith("0")) {
+    month = day.substring(1);
+  }
+  tm.tm_year = year.toInt() - 1900;
+  tm.tm_mon = month.toInt() - 1;
+  tm.tm_mday = day.toInt();
+  tm.tm_hour = calTimestamp.substring(11, 13).toInt();
+  tm.tm_min  = calTimestamp.substring(14, 16).toInt();
+  tm.tm_sec  = calTimestamp.substring(17, 19).toInt();
+
+  Serial.println("dia:  " + calTimestamp.substring(8, 10));
+  Serial.println("mes:  " + calTimestamp.substring(5, 7));
+  Serial.println("ano:  " + calTimestamp.substring(0, 4));
+
+
+  Serial.println("hora:  " + calTimestamp.substring(11, 13));
+  Serial.println("minutos:  " + calTimestamp.substring(14, 16));
+  Serial.println("segundos:  " + calTimestamp.substring(17, 19));
+
+  return mktime(&tm);
+}
+
+
 void printLocalTime() {
   if(!getLocalTime(&localTimeInfo)){
     Serial.println("Failed to obtain time");
@@ -932,17 +964,25 @@ int readNightscout(char *url, char *token, struct NSinfo *ns) {
           
           JsonObject loop_obj;
           JsonObject loop_display;
+          JsonObject loop_last_predicted;
+
           if(cfg.info_line==3) {
             loop_obj = JSONdoc["openaps"];
             loop_display = loop_obj["status"];
           } else {
             loop_obj = JSONdoc["loop"];
             loop_display = loop_obj["display"];
+            loop_last_predicted = loop_obj["lastPredicted"];
           }
+
           strncpy(tmpstr, loop_display["symbol"] | "?", 4); // "⌁"
           ns->loop_display_symbol = tmpstr[0];
           strncpy(ns->loop_display_code, loop_display["code"] | "N/A", 16); // "enacted"
           strncpy(ns->loop_display_label, loop_display["label"] | "N/A", 16); // "Enacted"
+
+
+          strncpy(ns->loop_last_predicted_start_date, loop_last_predicted["startDate"] | "N/A", 20);
+
           // Serial.println("LOOP OK");
 
           JsonObject basal = JSONdoc["basal"];
@@ -1035,6 +1075,23 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
   }
   M5.Lcd.setTextSize(1);
   M5.Lcd.setFreeFont(FSSB12);
+
+
+      // Calculando tempo do ultimo loop com sucesso
+      int loopDifSec=difftime( mktime(&timeinfo), convertToTime(ns->loop_last_predicted_start_date) );
+      Serial.println("Calculando os minutos do LOOP");
+      unsigned int loopDifMin = (loopDifSec+30)/60;
+      // Correção de hora. Tem uma hora a mais no servidor da api
+      loopDifMin=loopDifMin-60;
+
+      Serial.println(loopDifMin);
+
+      int stw=M5.Lcd.textWidth(tmpStr);
+      M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
+      M5.Lcd.drawString("L:"+String(loopDifMin)+ " min" , 0, 20, GFXFF);
+      // FIM - Calculando tempo do ultimo loop com sucesso
+
+
   // Serial.print("sensSgv="); Serial.print(sensSgv); Serial.print(", cfg.snd_alarm="); Serial.println(cfg.snd_alarm); 
   if((ns->sensSgv<=cfg.snd_alarm) && (ns->sensSgv>=0.1)) {
     // red alarm state
@@ -1043,12 +1100,32 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
     M5.Lcd.fillRect(0, 220, 320, 20, TFT_RED);
     M5.Lcd.setTextColor(TFT_BLACK, TFT_RED);
     int stw=M5.Lcd.textWidth(tmpStr);
+
+    M5.Lcd.drawString(tmpStr, 159-stw/2, 220, GFXFF);
     M5.Lcd.drawString(tmpStr, 159-stw/2, 220, GFXFF);
     if( (alarmDifSec>cfg.alarm_repeat*60) && (snoozeRemaining<=0) ) {
         sndAlarm();
         lastAlarmTime = mktime(&timeinfo);
     }
-  } else {
+  } else
+      if((strcmp(ns->loop_display_label,"Error")==0)&&(loopDifMin>15)) {
+        // red alarm state
+        // M5.Lcd.fillRect(110, 220, 100, 20, TFT_RED);
+        Serial.println("LOOP ERROR");
+        M5.Lcd.fillRect(0, 220, 320, 20, TFT_RED);
+        M5.Lcd.setTextColor(TFT_BLACK, TFT_RED);
+        int stw=M5.Lcd.textWidth(tmpStr);
+        M5.Lcd.drawString(tmpStr, 159-stw/2, 220, GFXFF);
+        M5.Lcd.drawString("LOOP ERROR " + String(loopDifMin) + "min", 0, 20, GFXFF);
+
+        if( (alarmDifSec>cfg.alarm_repeat*60) && (snoozeRemaining<=0) ) {
+            sndAlarm();
+            lastAlarmTime = mktime(&timeinfo);
+          }
+        }
+
+
+    else {
     if((ns->sensSgv<=cfg.snd_warning) && (ns->sensSgv>=0.1)) {
       // yellow warning state
       // M5.Lcd.fillRect(110, 220, 100, 20, TFT_YELLOW);
@@ -1092,12 +1169,14 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
             // yellow warning state
             // M5.Lcd.fillRect(110, 220, 100, 20, TFT_YELLOW);
             Serial.println("WARNING NO READINGS");
+            M5.Lcd.drawString("MISS READS " + String(sensorDifMin) + "min", 0, 20, GFXFF);
+
             M5.Lcd.fillRect(0, 220, 320, 20, TFT_YELLOW);
             M5.Lcd.setTextColor(TFT_BLACK, TFT_YELLOW);
             int stw=M5.Lcd.textWidth(tmpStr);
             M5.Lcd.drawString(tmpStr, 159-stw/2, 220, GFXFF);
             if( (alarmDifSec>cfg.alarm_repeat*60) && (snoozeRemaining<=0) ) {
-              sndWarning();
+              sndAlarm();
               lastAlarmTime = mktime(&timeinfo);
             }
           } else {
@@ -1239,7 +1318,7 @@ void draw_page() {
       }
               
       M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
-      M5.Lcd.drawString(cfg.userName, 0, 24, GFXFF);
+      //M5.Lcd.drawString(cfg.userName, 0, 24, GFXFF);
       
       if(cfg.show_COB_IOB) {
         M5.Lcd.setFreeFont(FSSB12);
@@ -1649,7 +1728,7 @@ void draw_page() {
       M5.Lcd.setTextDatum(MC_DATUM);
       M5.Lcd.setFreeFont(FSSB9);
       M5.Lcd.setTextColor(TFT_DARKGREY, TFT_BLACK);
-      M5.Lcd.drawString(cfg.userName, 160, 145, GFXFF);
+      // M5.Lcd.drawString(cfg.userName, 160, 145, GFXFF);
   
       // Pre-compute hand degrees, x & y coords for a fast screen update
       sdeg = ss*6;                  // 0-59 -> 0-354
