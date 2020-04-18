@@ -1078,6 +1078,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
 
 
       // Calculando tempo do ultimo loop com sucesso
+      M5.Lcd.drawString("                             ", 0, 20, GFXFF);
       int loopDifSec=difftime( mktime(&timeinfo), convertToTime(ns->loop_last_predicted_start_date) );
       Serial.println("Calculando os minutos do LOOP");
       unsigned int loopDifMin = (loopDifSec+30)/60;
@@ -1085,12 +1086,10 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
       loopDifMin=loopDifMin-60;
 
       Serial.println(loopDifMin);
-
       int stw=M5.Lcd.textWidth(tmpStr);
       M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
       M5.Lcd.drawString("L:"+String(loopDifMin)+ " min" , 0, 20, GFXFF);
       // FIM - Calculando tempo do ultimo loop com sucesso
-
 
   // Serial.print("sensSgv="); Serial.print(sensSgv); Serial.print(", cfg.snd_alarm="); Serial.println(cfg.snd_alarm); 
   if((ns->sensSgv<=cfg.snd_alarm) && (ns->sensSgv>=0.1)) {
@@ -1114,8 +1113,7 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
         Serial.println("LOOP ERROR");
         M5.Lcd.fillRect(0, 220, 320, 20, TFT_RED);
         M5.Lcd.setTextColor(TFT_BLACK, TFT_RED);
-        int stw=M5.Lcd.textWidth(tmpStr);
-        M5.Lcd.drawString(tmpStr, 159-stw/2, 220, GFXFF);
+        M5.Lcd.drawString("                                       ", 0, 20, GFXFF);
         M5.Lcd.drawString("LOOP ERROR " + String(loopDifMin) + "min", 0, 20, GFXFF);
 
         if( (alarmDifSec>cfg.alarm_repeat*60) && (snoozeRemaining<=0) ) {
