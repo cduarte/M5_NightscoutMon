@@ -76,7 +76,7 @@ struct NSinfo {
   char loop_display_symbol = '?';
   char loop_display_code[16];
   char loop_display_label[16];
-  char loop_last_predicted_start_date[20];
+  char last_loop_time[28];
   char basal_display[16];
   float basal_current = 0;
   float basal_tempbasal = 0;

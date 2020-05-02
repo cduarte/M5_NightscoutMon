@@ -138,6 +138,9 @@ void handleRoot() {
   } else {
     sprintf(tmpStr, "%4.1f mmol/L", ns.sensSgv);
   }
+
+  message += "Loop time: <b>"; message += ns.last_loop_time; message += "</b><br />\r\n";
+  
   message += "Last sensor value: <b>"; message += tmpStr; message += "</b><br />\r\n";
   message += "Last sensor direction: <b>"; message += ns.sensDir; message += "</b><br />\r\n";
 /* can possibly display all this, but why?

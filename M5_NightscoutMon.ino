@@ -255,7 +255,7 @@ time_t convertToTime(String calTimestamp) {
   }
   String day = calTimestamp.substring(8, 10);
   if (day.startsWith("0")) {
-    month = day.substring(1);
+    day = day.substring(1);
   }
   tm.tm_year = year.toInt() - 1900;
   tm.tm_mon = month.toInt() - 1;
@@ -964,15 +964,15 @@ int readNightscout(char *url, char *token, struct NSinfo *ns) {
           
           JsonObject loop_obj;
           JsonObject loop_display;
-          JsonObject loop_last_predicted;
+          JsonObject loop_lastloop;
 
           if(cfg.info_line==3) {
             loop_obj = JSONdoc["openaps"];
             loop_display = loop_obj["status"];
           } else {
             loop_obj = JSONdoc["loop"];
+            loop_lastloop = loop_obj["lastLoop"];
             loop_display = loop_obj["display"];
-            loop_last_predicted = loop_obj["lastPredicted"];
           }
 
           strncpy(tmpstr, loop_display["symbol"] | "?", 4); // "⌁"
@@ -980,10 +980,7 @@ int readNightscout(char *url, char *token, struct NSinfo *ns) {
           strncpy(ns->loop_display_code, loop_display["code"] | "N/A", 16); // "enacted"
           strncpy(ns->loop_display_label, loop_display["label"] | "N/A", 16); // "Enacted"
 
-
-          strncpy(ns->loop_last_predicted_start_date, loop_last_predicted["startDate"] | "N/A", 20);
-
-          // Serial.println("LOOP OK");
+          strcpy(ns->last_loop_time, loop_lastloop["timestamp"]); // ultimo horario que o loop rodou
 
           JsonObject basal = JSONdoc["basal"];
           strncpy(ns->basal_display, basal["display"] | "N/A", 16); // "T: 0.950U"      
@@ -1079,13 +1076,14 @@ void handleAlarmsInfoLine(struct NSinfo *ns) {
 
       // Calculando tempo do ultimo loop com sucesso
       M5.Lcd.drawString("                             ", 0, 20, GFXFF);
-      int loopDifSec=difftime( mktime(&timeinfo), convertToTime(ns->loop_last_predicted_start_date) );
+      int loopDifSec=difftime( mktime(&timeinfo), convertToTime(ns->last_loop_time) );
       Serial.println("Calculando os minutos do LOOP");
       unsigned int loopDifMin = (loopDifSec+30)/60;
       // Correção de hora. Tem uma hora a mais no servidor da api
       loopDifMin=loopDifMin-60;
 
-      Serial.println(loopDifMin);
+
+      
       int stw=M5.Lcd.textWidth(tmpStr);
       M5.Lcd.setTextColor(TFT_WHITE, TFT_BLACK);
       M5.Lcd.drawString("L:"+String(loopDifMin)+ " min" , 0, 20, GFXFF);
